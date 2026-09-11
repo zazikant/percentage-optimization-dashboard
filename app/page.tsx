@@ -11,7 +11,6 @@ const EMPTY_RESULT: OptimizeResponse = {
     desiredPercentages: { easy: 0, medium: 0, hard: 0 },
     available: { easy: 0, medium: 0, hard: 0 },
     totalTarget: 0,
-    sumAvailable: 0,
   },
 };
 

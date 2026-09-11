@@ -17,8 +17,6 @@ export default function ComparisonTable({
   available,
   totalTarget,
 }: ComparisonTableProps) {
-  const sumAvailable = sumCounts(available);
-
   return (
     <section className="space-y-6">
       <header className="flex flex-wrap items-end justify-between gap-4 border-b border-black pb-4">
@@ -27,13 +25,15 @@ export default function ComparisonTable({
             Comparison of best options
           </h2>
           <p className="mt-1 text-xs text-black/70">
-            Four strategies computed from your inputs. Every row satisfies
-            easy + medium + hard = total items and percentages sum to exactly 100.
+            easy + medium + hard = totalItems, percentages sum to 100
           </p>
         </div>
-        <dl className="flex gap-6 text-right">
-          <Stat label="Target" value={String(totalTarget)} />
-          <Stat label="Available" value={String(sumAvailable)} />
+        <dl className="flex gap-3 text-right">
+          <Stat label="Total" value={String(totalTarget)} />
+          <Stat
+            label="Available"
+            value={`${available.easy}/${available.medium}/${available.hard}`}
+          />
           <Stat
             label="Desired"
             value={`${desiredPercentages.easy}/${desiredPercentages.medium}/${desiredPercentages.hard}`}
@@ -46,12 +46,12 @@ export default function ComparisonTable({
           <thead className="bg-black text-xs uppercase tracking-wide text-white">
             <tr>
               <Th>Strategy</Th>
-              <Th align="center">Total items</Th>
+              <Th align="center">Total</Th>
               <Th align="center">Easy</Th>
               <Th align="center">Medium</Th>
               <Th align="center">Hard</Th>
-              <Th>Final percentages</Th>
-              <Th>Notes</Th>
+              <Th>Final %</Th>
+              <Th>Valid</Th>
             </tr>
           </thead>
           <tbody className="divide-y divide-black/20">
@@ -70,27 +70,25 @@ export default function ComparisonTable({
                       {s.totalItems}
                     </span>
                   </Td>
-                  <Td align="center">
-                    <Count value={s.counts.easy} max={available.easy} />
-                  </Td>
-                  <Td align="center">
-                    <Count value={s.counts.medium} max={available.medium} />
-                  </Td>
-                  <Td align="center">
-                    <Count value={s.counts.hard} max={available.hard} />
-                  </Td>
+                  <Td align="center">{s.counts.easy}</Td>
+                  <Td align="center">{s.counts.medium}</Td>
+                  <Td align="center">{s.counts.hard}</Td>
                   <Td>
                     <span className="font-mono text-base font-bold text-black">
                       {s.finalPercentages}
                     </span>
                   </Td>
                   <Td>
-                    <p className="text-xs text-black">{s.notes}</p>
-                    {!valid ? (
-                      <p className="mt-1 text-[11px] font-bold uppercase tracking-wide text-black">
-                        No feasible distribution under these inputs.
-                      </p>
-                    ) : null}
+                    <span
+                      className={
+                        "border px-2 py-0.5 text-[11px] font-bold uppercase tracking-wider " +
+                        (valid
+                          ? "border-black bg-black text-white"
+                          : "border-black bg-white text-black")
+                      }
+                    >
+                      {valid ? "OK" : "FAIL"}
+                    </span>
                   </Td>
                 </tr>
               );
@@ -135,26 +133,13 @@ function Td({
   );
 }
 
-function Count({ value, max }: { value: number; max: number }) {
-  const over = value > max;
-  return (
-    <span
-      className={
-        "text-base font-bold " + (over ? "underline decoration-2 underline-offset-4" : "")
-      }
-    >
-      {value}
-    </span>
-  );
-}
-
 function Stat({ label, value }: { label: string; value: string }) {
   return (
     <div className="border border-black bg-white px-3 py-2">
       <dt className="text-[10px] font-bold uppercase tracking-wider text-black">
         {label}
       </dt>
-      <dd className="text-base font-bold text-black">{value}</dd>
+      <dd className="font-mono text-base font-bold text-black">{value}</dd>
     </div>
   );
 }

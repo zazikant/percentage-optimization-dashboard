@@ -9,14 +9,12 @@ export interface OptimizationStrategy {
   totalItems: number;
   counts: DifficultyBreakdown;
   finalPercentages: string;
-  notes: string;
 }
 
 export interface OptimizeRequest {
   easyAvailable: number;
   mediumAvailable: number;
   hardAvailable: number;
-  totalTarget: number;
   desiredEasyPct: number;
   desiredMediumPct: number;
   desiredHardPct: number;
@@ -28,6 +26,5 @@ export interface OptimizeResponse {
     desiredPercentages: { easy: number; medium: number; hard: number };
     available: DifficultyBreakdown;
     totalTarget: number;
-    sumAvailable: number;
   };
 }

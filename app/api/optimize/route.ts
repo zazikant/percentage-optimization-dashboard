@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { optimize } from "@/lib/optimizer";
+import { getTotalTarget, optimize } from "@/lib/optimizer";
 import type {
   DifficultyBreakdown,
   OptimizeRequest,
@@ -38,7 +38,6 @@ export async function POST(req: Request): Promise<NextResponse> {
   const easyAvailable = toInt(b.easyAvailable);
   const mediumAvailable = toInt(b.mediumAvailable);
   const hardAvailable = toInt(b.hardAvailable);
-  const totalTarget = toInt(b.totalTarget);
   const desiredEasyPct = toInt(b.desiredEasyPct);
   const desiredMediumPct = toInt(b.desiredMediumPct);
   const desiredHardPct = toInt(b.desiredHardPct);
@@ -47,40 +46,39 @@ export async function POST(req: Request): Promise<NextResponse> {
     easyAvailable === null ||
     mediumAvailable === null ||
     hardAvailable === null ||
-    totalTarget === null ||
     desiredEasyPct === null ||
     desiredMediumPct === null ||
     desiredHardPct === null
   ) {
     return badRequest(
-      "All inputs must be integers: easyAvailable, mediumAvailable, hardAvailable, totalTarget, desiredEasyPct, desiredMediumPct, desiredHardPct.",
+      "All inputs must be integers: easyAvailable, mediumAvailable, hardAvailable, desiredEasyPct, desiredMediumPct, desiredHardPct.",
     );
   }
   if (
     easyAvailable < 0 ||
     mediumAvailable < 0 ||
     hardAvailable < 0 ||
-    totalTarget < 1 ||
     desiredEasyPct < 0 ||
     desiredMediumPct < 0 ||
     desiredHardPct < 0
   ) {
-    return badRequest("Numeric inputs must be non-negative; totalTarget must be >= 1.");
+    return badRequest("Numeric inputs must be non-negative.");
+  }
+  if (easyAvailable + mediumAvailable + hardAvailable === 0) {
+    return badRequest("Available pool must contain at least one item.");
   }
 
   const optimizeReq: OptimizeRequest = {
     easyAvailable,
     mediumAvailable,
     hardAvailable,
-    totalTarget,
     desiredEasyPct,
     desiredMediumPct,
     desiredHardPct,
   };
 
   const strategies = optimize(optimizeReq);
-
-  const sumAvailable = easyAvailable + mediumAvailable + hardAvailable;
+  const totalTarget = getTotalTarget(optimizeReq);
   const available: DifficultyBreakdown = {
     easy: easyAvailable,
     medium: mediumAvailable,
@@ -91,15 +89,21 @@ export async function POST(req: Request): Promise<NextResponse> {
     strategies,
     meta: {
       desiredPercentages: {
-        easy: desiredSum === 0 ? 34 : Math.round((desiredEasyPct / desiredSum) * 100),
+        easy:
+          desiredSum === 0
+            ? Math.round((easyAvailable / totalTarget) * 100)
+            : Math.round((desiredEasyPct / desiredSum) * 100),
         medium:
-          desiredSum === 0 ? 54 : Math.round((desiredMediumPct / desiredSum) * 100),
+          desiredSum === 0
+            ? Math.round((mediumAvailable / totalTarget) * 100)
+            : Math.round((desiredMediumPct / desiredSum) * 100),
         hard:
-          desiredSum === 0 ? 12 : Math.round((desiredHardPct / desiredSum) * 100),
+          desiredSum === 0
+            ? Math.round((hardAvailable / totalTarget) * 100)
+            : Math.round((desiredHardPct / desiredSum) * 100),
       },
       available,
       totalTarget,
-      sumAvailable,
     },
   };
   return NextResponse.json(response);
@@ -108,6 +112,6 @@ export async function POST(req: Request): Promise<NextResponse> {
 export async function GET(): Promise<NextResponse> {
   return NextResponse.json({
     message:
-      "POST { easyAvailable, mediumAvailable, hardAvailable, totalTarget, desiredEasyPct, desiredMediumPct, desiredHardPct } to compute 4 distribution strategies.",
+      "POST { easyAvailable, mediumAvailable, hardAvailable, desiredEasyPct, desiredMediumPct, desiredHardPct } to compute 4 distribution strategies.",
   });
 }

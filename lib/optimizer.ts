@@ -133,15 +133,12 @@ function findLargestTWithSplit(
 function strategy(
   name: string,
   counts: DifficultyBreakdown,
-  notes: string,
 ): OptimizationStrategy {
-  const total = sumCounts(counts);
   return {
     strategyName: name,
-    totalItems: total,
+    totalItems: sumCounts(counts),
     counts,
     finalPercentages: formatPercentages(counts),
-    notes,
   };
 }
 
@@ -152,7 +149,7 @@ export function optimize(req: OptimizeRequest): OptimizationStrategy[] {
     hard: clampNonNegativeInt(req.hardAvailable),
   };
   const sumAvailable = sumCounts(available);
-  const totalTarget = clampNonNegativeInt(req.totalTarget);
+  const totalTarget = sumAvailable;
 
   const desiredRaw = {
     easy: clampNonNegativeInt(req.desiredEasyPct),
@@ -161,7 +158,6 @@ export function optimize(req: OptimizeRequest): OptimizationStrategy[] {
   };
   const desiredSum = desiredRaw.easy + desiredRaw.medium + desiredRaw.hard;
 
-  // Fall back to natural pool ratios when desired is all zero
   const natural =
     sumAvailable > 0
       ? {
@@ -169,7 +165,7 @@ export function optimize(req: OptimizeRequest): OptimizationStrategy[] {
           medium: (available.medium / sumAvailable) * 100,
           hard: (available.hard / sumAvailable) * 100,
         }
-      : { easy: 34, medium: 54, hard: 12 };
+      : { easy: 0, medium: 0, hard: 0 };
 
   const desired =
     desiredSum === 0
@@ -180,15 +176,11 @@ export function optimize(req: OptimizeRequest): OptimizationStrategy[] {
           hard: (desiredRaw.hard / desiredSum) * 100,
         };
 
-  const cap = Math.max(1, Math.min(sumAvailable, totalTarget || sumAvailable));
+  const cap = Math.max(1, totalTarget);
 
-  // ---- Option 1: Keep All Items ----
   const opt1Counts: DifficultyBreakdown =
     sumAvailable > 0 ? { ...available } : { ...ZERO_COUNTS };
 
-  // ---- Option 2: Perfect Fit (Max Items) ----
-  // Largest T <= cap where any integer-pct split exists within availability.
-  // Tie-break by closeness to desired percentages.
   const opt2 = findLargestTWithSplit(cap, available, desired, {
     requireIntegerPct: true,
   });
@@ -196,40 +188,32 @@ export function optimize(req: OptimizeRequest): OptimizationStrategy[] {
     ? { ...opt2.counts }
     : { ...ZERO_COUNTS };
 
-  // ---- Option 3: Alternative Fit (Prioritize Easy) ----
-  // Keep all available easy items; find largest T where this + integer-pct split exists.
   let opt3Counts: DifficultyBreakdown = { ...ZERO_COUNTS };
   if (available.easy > 0) {
-    const upperT3 = Math.min(sumAvailable, totalTarget || sumAvailable);
-    const lowerT3 = available.easy;
-    const opt3 = findLargestTWithSplit(upperT3, available, desired, {
+    const opt3 = findLargestTWithSplit(cap, available, desired, {
       requireIntegerPct: true,
       forceEasyCount: available.easy,
     });
     if (opt3) {
       opt3Counts = { ...opt3.counts };
     } else {
-      // Fallback: keep all easy, distribute medium/hard per desired ratio, no integer-pct guarantee
       const mhRatio =
         desired.medium + desired.hard > 0
           ? desired.medium / (desired.medium + desired.hard)
           : available.medium / Math.max(1, available.medium + available.hard);
-      const targetT3 = Math.max(
-        available.easy,
-        Math.min(upperT3, lowerT3 + available.medium + available.hard),
+      const remaining3 = Math.max(
+        0,
+        cap - available.easy,
       );
-      const remaining3 = Math.max(0, targetT3 - available.easy);
-      let m3 = Math.min(available.medium, Math.round(remaining3 * mhRatio));
+      const m3 = Math.min(
+        available.medium,
+        Math.round(remaining3 * mhRatio),
+      );
       const h3 = Math.max(0, Math.min(available.hard, remaining3 - m3));
-      if (m3 + h3 > remaining3) {
-        m3 = Math.max(0, remaining3 - h3);
-      }
       opt3Counts = { easy: available.easy, medium: m3, hard: h3 };
     }
   }
 
-  // ---- Option 4: Clean Round Numbers ----
-  // Largest T <= cap where integer-pct split exists AND percentages are multiples of 5.
   const opt4 = findLargestTWithSplit(cap, available, desired, {
     requireIntegerPct: true,
     requireCleanPct: true,
@@ -238,37 +222,18 @@ export function optimize(req: OptimizeRequest): OptimizationStrategy[] {
     ? { ...opt4.counts }
     : { ...ZERO_COUNTS };
 
-  const opt1 = strategy(
-    "Option 1: Keep All Items",
-    opt1Counts,
-    sumAvailable > totalTarget && totalTarget > 0
-      ? `Best if you cannot drop items. Uses all ${sumAvailable} available; exceeds your target by ${sumAvailable - totalTarget}.`
-      : "Best if you cannot drop items. Percentages are rounded to equal 100%.",
-  );
+  return [
+    strategy("Option 1: Keep All Items", opt1Counts),
+    strategy("Option 2: Perfect Fit (Max Items)", opt2Counts),
+    strategy("Option 3: Alternative Perfect Fit", opt3Counts),
+    strategy("Option 4: Clean Round Numbers", opt4Counts),
+  ];
+}
 
-  const opt2Strategy = strategy(
-    "Option 2: Perfect Fit (Max Items)",
-    opt2Counts,
-    opt2
-      ? `Largest total where integer percentages fit. Drops ${Math.max(0, sumAvailable - opt2.total)} item(s).`
-      : "No integer fit found within available pool.",
+export function getTotalTarget(req: OptimizeRequest): number {
+  return (
+    clampNonNegativeInt(req.easyAvailable) +
+    clampNonNegativeInt(req.mediumAvailable) +
+    clampNonNegativeInt(req.hardAvailable)
   );
-
-  const opt3Strategy = strategy(
-    "Option 3: Alternative Perfect Fit",
-    opt3Counts,
-    sumCounts(opt3Counts) > 0
-      ? `Keeps all your easy items (${available.easy}). Drops ${Math.max(0, available.medium - opt3Counts.medium)} medium and ${Math.max(0, available.hard - opt3Counts.hard)} hard.`
-      : "Cannot keep all easy items under these inputs.",
-  );
-
-  const opt4Strategy = strategy(
-    "Option 4: Clean Round Numbers",
-    opt4Counts,
-    sumCounts(opt4Counts) > 0
-      ? `Gives highly aesthetic, clean milestone percentages (multiples of 5%).`
-      : "No clean-percent fit found within available pool.",
-  );
-
-  return [opt1, opt2Strategy, opt3Strategy, opt4Strategy];
 }
