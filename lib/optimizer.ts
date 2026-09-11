@@ -24,37 +24,110 @@ function formatPercentages(c: DifficultyBreakdown): string {
   return `${e}% / ${m}% / ${h}%`;
 }
 
-function withinAvailability(c: DifficultyBreakdown, a: DifficultyBreakdown): boolean {
+function deviation(
+  counts: DifficultyBreakdown,
+  total: number,
+  desired: { easy: number; medium: number; hard: number },
+): number {
+  if (total === 0) return Infinity;
+  const pe = (counts.easy / total) * 100;
+  const pm = (counts.medium / total) * 100;
+  const ph = (counts.hard / total) * 100;
   return (
-    c.easy <= a.easy && c.medium <= a.medium && c.hard <= a.hard
+    Math.abs(pe - desired.easy) +
+    Math.abs(pm - desired.medium) +
+    Math.abs(ph - desired.hard)
   );
 }
 
-function pickLowerTotal(
-  pct: { easy: number; medium: number; hard: number },
+interface Split {
+  counts: DifficultyBreakdown;
+  total: number;
+  pct: { easy: number; medium: number; hard: number };
+}
+
+function enumerateSplits(
+  T: number,
   available: DifficultyBreakdown,
-  cap: number,
-): { total: number; counts: DifficultyBreakdown } | null {
-  for (let t = cap; t >= 1; t--) {
-    const e = (t * pct.easy) / 100;
-    const m = (t * pct.medium) / 100;
-    const h = (t * pct.hard) / 100;
-    if (
-      Number.isInteger(e) &&
-      Number.isInteger(m) &&
-      Number.isInteger(h)
-    ) {
-      const counts = { easy: e, medium: m, hard: h };
-      if (withinAvailability(counts, available)) {
-        return { total: t, counts };
+  opts: {
+    requireIntegerPct: boolean;
+    requireCleanPct?: boolean;
+    forceEasyCount?: number;
+  },
+): Split[] {
+  const result: Split[] = [];
+  const easyMax =
+    opts.forceEasyCount !== undefined
+      ? Math.min(available.easy, T, opts.forceEasyCount)
+      : Math.min(available.easy, T);
+  const easyMin =
+    opts.forceEasyCount !== undefined ? Math.min(easyMax, opts.forceEasyCount) : 0;
+
+  for (let e = easyMin; e <= easyMax; e++) {
+    if (opts.requireIntegerPct && (e * 100) % T !== 0) continue;
+    const remaining1 = T - e;
+    const mediumMax = Math.min(available.medium, remaining1);
+    for (let m = 0; m <= mediumMax; m++) {
+      const h = remaining1 - m;
+      if (h < 0 || h > available.hard) continue;
+      if (opts.requireIntegerPct) {
+        if ((m * 100) % T !== 0) continue;
+        if ((h * 100) % T !== 0) continue;
       }
+      const pe = (e * 100) / T;
+      const pm = (m * 100) / T;
+      const ph = (h * 100) / T;
+      if (opts.requireCleanPct === true) {
+        if (pe % 5 !== 0 || pm % 5 !== 0 || ph % 5 !== 0) continue;
+      }
+      result.push({
+        counts: { easy: e, medium: m, hard: h },
+        total: T,
+        pct: { easy: pe, medium: pm, hard: ph },
+      });
+    }
+  }
+  return result;
+}
+
+function pickBest(
+  splits: Split[],
+  desired: { easy: number; medium: number; hard: number },
+): Split | null {
+  if (splits.length === 0) return null;
+  const EPSILON = 1e-6;
+  let best = splits[0];
+  let bestErr = deviation(best.counts, best.total, desired);
+  for (let i = 1; i < splits.length; i++) {
+    const err = deviation(splits[i].counts, splits[i].total, desired);
+    if (err + EPSILON < bestErr) {
+      best = splits[i];
+      bestErr = err;
+    }
+  }
+  return best;
+}
+
+function findLargestTWithSplit(
+  cap: number,
+  available: DifficultyBreakdown,
+  desired: { easy: number; medium: number; hard: number },
+  opts: {
+    requireIntegerPct: boolean;
+    requireCleanPct?: boolean;
+    forceEasyCount?: number;
+  },
+): Split | null {
+  const minT =
+    opts.forceEasyCount !== undefined ? opts.forceEasyCount : 1;
+  for (let t = cap; t >= minT; t--) {
+    const splits = enumerateSplits(t, available, opts);
+    if (splits.length > 0) {
+      const best = pickBest(splits, desired);
+      if (best) return best;
     }
   }
   return null;
-}
-
-function roundToMultiple(value: number, step: number): number {
-  return Math.round(value / step) * step;
 }
 
 function strategy(
@@ -87,9 +160,20 @@ export function optimize(req: OptimizeRequest): OptimizationStrategy[] {
     hard: clampNonNegativeInt(req.desiredHardPct),
   };
   const desiredSum = desiredRaw.easy + desiredRaw.medium + desiredRaw.hard;
+
+  // Fall back to natural pool ratios when desired is all zero
+  const natural =
+    sumAvailable > 0
+      ? {
+          easy: (available.easy / sumAvailable) * 100,
+          medium: (available.medium / sumAvailable) * 100,
+          hard: (available.hard / sumAvailable) * 100,
+        }
+      : { easy: 34, medium: 54, hard: 12 };
+
   const desired =
     desiredSum === 0
-      ? { easy: 34, medium: 54, hard: 12 }
+      ? natural
       : {
           easy: (desiredRaw.easy / desiredSum) * 100,
           medium: (desiredRaw.medium / desiredSum) * 100,
@@ -103,92 +187,56 @@ export function optimize(req: OptimizeRequest): OptimizationStrategy[] {
     sumAvailable > 0 ? { ...available } : { ...ZERO_COUNTS };
 
   // ---- Option 2: Perfect Fit (Max Items) ----
-  let opt2Counts: DifficultyBreakdown = { ...ZERO_COUNTS };
-  let opt2Total = 0;
-  const perfect = pickLowerTotal(desired, available, cap);
-  if (perfect) {
-    opt2Counts = perfect.counts;
-    opt2Total = perfect.total;
-  } else {
-    const approxCap = cap;
-    let best: { total: number; counts: DifficultyBreakdown; err: number } | null = null;
-    for (let t = approxCap; t >= 1; t--) {
-      const ce = Math.round((t * desired.easy) / 100);
-      const cm = Math.round((t * desired.medium) / 100);
-      const ch = t - ce - cm;
-      if (ch < 0) continue;
-      const counts = { easy: ce, medium: cm, hard: ch };
-      if (!withinAvailability(counts, available)) continue;
-      const err =
-        Math.abs(ce / t - desired.easy / 100) +
-        Math.abs(cm / t - desired.medium / 100) +
-        Math.abs(ch / t - desired.hard / 100);
-      if (!best || err < best.err) {
-        best = { total: t, counts, err };
-      }
-    }
-    if (best) {
-      opt2Counts = best.counts;
-      opt2Total = best.total;
-    }
-  }
+  // Largest T <= cap where any integer-pct split exists within availability.
+  // Tie-break by closeness to desired percentages.
+  const opt2 = findLargestTWithSplit(cap, available, desired, {
+    requireIntegerPct: true,
+  });
+  const opt2Counts: DifficultyBreakdown = opt2
+    ? { ...opt2.counts }
+    : { ...ZERO_COUNTS };
 
   // ---- Option 3: Alternative Fit (Prioritize Easy) ----
+  // Keep all available easy items; find largest T where this + integer-pct split exists.
   let opt3Counts: DifficultyBreakdown = { ...ZERO_COUNTS };
-  const easyUsed3 = Math.min(available.easy, cap);
-  const remaining3 = Math.max(0, cap - easyUsed3);
-  const medHardTotal3 = available.medium + available.hard;
-  if (medHardTotal3 > 0 && remaining3 > 0) {
-    const medShare =
-      desired.medium + desired.hard > 0
-        ? desired.medium / (desired.medium + desired.hard)
-        : available.medium / medHardTotal3;
-    let med = Math.min(available.medium, Math.round(remaining3 * medShare));
-    let hard = remaining3 - med;
-    if (hard > available.hard) {
-      hard = available.hard;
-      med = remaining3 - hard;
+  if (available.easy > 0) {
+    const upperT3 = Math.min(sumAvailable, totalTarget || sumAvailable);
+    const lowerT3 = available.easy;
+    const opt3 = findLargestTWithSplit(upperT3, available, desired, {
+      requireIntegerPct: true,
+      forceEasyCount: available.easy,
+    });
+    if (opt3) {
+      opt3Counts = { ...opt3.counts };
+    } else {
+      // Fallback: keep all easy, distribute medium/hard per desired ratio, no integer-pct guarantee
+      const mhRatio =
+        desired.medium + desired.hard > 0
+          ? desired.medium / (desired.medium + desired.hard)
+          : available.medium / Math.max(1, available.medium + available.hard);
+      const targetT3 = Math.max(
+        available.easy,
+        Math.min(upperT3, lowerT3 + available.medium + available.hard),
+      );
+      const remaining3 = Math.max(0, targetT3 - available.easy);
+      let m3 = Math.min(available.medium, Math.round(remaining3 * mhRatio));
+      const h3 = Math.max(0, Math.min(available.hard, remaining3 - m3));
+      if (m3 + h3 > remaining3) {
+        m3 = Math.max(0, remaining3 - h3);
+      }
+      opt3Counts = { easy: available.easy, medium: m3, hard: h3 };
     }
-    if (med < 0) med = 0;
-    if (hard < 0) hard = 0;
-    opt3Counts = { easy: easyUsed3, medium: med, hard };
-  } else {
-    opt3Counts = { easy: easyUsed3, medium: 0, hard: 0 };
   }
 
-  // ---- Option 4: Clean Milestone Numbers ----
-  let opt4Counts: DifficultyBreakdown = { ...ZERO_COUNTS };
-  const cleanPcts = {
-    easy: roundToMultiple(desired.easy, 5),
-    medium: roundToMultiple(desired.medium, 5),
-    hard: roundToMultiple(desired.hard, 5),
-  };
-  let cleanSum = cleanPcts.easy + cleanPcts.medium + cleanPcts.hard;
-  if (cleanSum !== 100) {
-    cleanPcts.hard += 100 - cleanSum;
-    cleanSum = 100;
-  }
-  const clean = pickLowerTotal(cleanPcts, available, cap);
-  if (clean) {
-    opt4Counts = clean.counts;
-  } else {
-    const altPcts = {
-      easy: roundToMultiple(desired.easy, 10),
-      medium: roundToMultiple(desired.medium, 10),
-      hard: roundToMultiple(desired.hard, 10),
-    };
-    let altSum = altPcts.easy + altPcts.medium + altPcts.hard;
-    if (altSum !== 100) {
-      altPcts.hard += 100 - altSum;
-      altSum = 100;
-    }
-    const alt = pickLowerTotal(altPcts, available, cap);
-    if (alt) {
-      opt4Counts = alt.counts;
-    } else {
-      opt4Counts = { ...ZERO_COUNTS };
-    }
-  }
+  // ---- Option 4: Clean Round Numbers ----
+  // Largest T <= cap where integer-pct split exists AND percentages are multiples of 5.
+  const opt4 = findLargestTWithSplit(cap, available, desired, {
+    requireIntegerPct: true,
+    requireCleanPct: true,
+  });
+  const opt4Counts: DifficultyBreakdown = opt4
+    ? { ...opt4.counts }
+    : { ...ZERO_COUNTS };
 
   const opt1 = strategy(
     "Option 1: Keep All Items",
@@ -198,27 +246,29 @@ export function optimize(req: OptimizeRequest): OptimizationStrategy[] {
       : "Best if you cannot drop items. Percentages are rounded to equal 100%.",
   );
 
-  const opt2 = strategy(
+  const opt2Strategy = strategy(
     "Option 2: Perfect Fit (Max Items)",
     opt2Counts,
-    opt2Total > 0
-      ? `Drops ${Math.max(0, sumAvailable - opt2Total)} items and matches desired percentages exactly.`
+    opt2
+      ? `Largest total where integer percentages fit. Drops ${Math.max(0, sumAvailable - opt2.total)} item(s).`
       : "No integer fit found within available pool.",
   );
 
-  const opt3 = strategy(
-    "Option 3: Alternative Fit",
+  const opt3Strategy = strategy(
+    "Option 3: Alternative Perfect Fit",
     opt3Counts,
-    `Keeps all your easy items (${opt3Counts.easy}). Medium/Hard split follows the desired medium:hard ratio.`,
+    sumCounts(opt3Counts) > 0
+      ? `Keeps all your easy items (${available.easy}). Drops ${Math.max(0, available.medium - opt3Counts.medium)} medium and ${Math.max(0, available.hard - opt3Counts.hard)} hard.`
+      : "Cannot keep all easy items under these inputs.",
   );
 
-  const opt4 = strategy(
+  const opt4Strategy = strategy(
     "Option 4: Clean Round Numbers",
     opt4Counts,
     sumCounts(opt4Counts) > 0
-      ? `Aesthetic milestone percentages (multiples of 5). Closest to your desired split.`
+      ? `Gives highly aesthetic, clean milestone percentages (multiples of 5%).`
       : "No clean-percent fit found within available pool.",
   );
 
-  return [opt1, opt2, opt3, opt4];
+  return [opt1, opt2Strategy, opt3Strategy, opt4Strategy];
 }

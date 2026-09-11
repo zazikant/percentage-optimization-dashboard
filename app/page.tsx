@@ -27,15 +27,15 @@ export default function HomePage() {
   }
 
   return (
-    <main className="mx-auto max-w-6xl px-4 py-10 sm:px-6 lg:px-8">
-      <header className="mb-8 space-y-2">
-        <p className="text-xs font-semibold uppercase tracking-[0.2em] text-slate-500 dark:text-slate-400">
+    <main className="mx-auto max-w-6xl bg-white px-6 py-12 sm:px-8 lg:px-10">
+      <header className="mb-12 space-y-3 border-b border-black pb-8">
+        <p className="text-xs font-bold uppercase tracking-[0.3em] text-black">
           Difficulty Distribution Optimizer
         </p>
-        <h1 className="text-3xl font-bold text-slate-900 dark:text-slate-50 sm:text-4xl">
+        <h1 className="text-4xl font-black uppercase tracking-tight text-black sm:text-5xl">
           Percentage Optimization Dashboard
         </h1>
-        <p className="max-w-3xl text-sm text-slate-600 dark:text-slate-300">
+        <p className="max-w-3xl text-sm text-black">
           Tell the dashboard how many questions of each difficulty you have on
           hand, how many you want to administer, and the difficulty mix you
           want. It computes four strategies — Keep All, Perfect Fit, Alternative
@@ -44,7 +44,7 @@ export default function HomePage() {
         </p>
       </header>
 
-      <div className="space-y-8">
+      <div className="space-y-10">
         <InputForm
           onResult={handleResult}
           loading={loading}
@@ -55,7 +55,7 @@ export default function HomePage() {
         {error ? (
           <div
             role="alert"
-            className="rounded-lg border border-red-300 bg-red-50 px-4 py-3 text-sm text-red-800 dark:border-red-900 dark:bg-red-950 dark:text-red-200"
+            className="border border-black bg-white p-4 text-sm font-bold uppercase tracking-wide text-black"
           >
             {error}
           </div>
@@ -73,9 +73,10 @@ export default function HomePage() {
         )}
       </div>
 
-      <footer className="mt-12 border-t border-slate-200 pt-6 text-xs text-slate-500 dark:border-slate-800 dark:text-slate-400">
+      <footer className="mt-16 border-t border-black pt-6 text-xs uppercase tracking-widest text-black">
         Built with Next.js 15 + TypeScript + Tailwind CSS. Pure algorithmic
-        optimizer — see <code className="rounded bg-slate-100 px-1 dark:bg-slate-800">lib/optimizer.ts</code>.
+        optimizer — see{" "}
+        <code className="border border-black bg-white px-1 py-0.5">lib/optimizer.ts</code>.
       </footer>
     </main>
   );
@@ -83,7 +84,7 @@ export default function HomePage() {
 
 function EmptyState() {
   return (
-    <div className="rounded-2xl border border-dashed border-slate-300 bg-white/50 p-10 text-center text-sm text-slate-500 dark:border-slate-700 dark:bg-slate-900/40 dark:text-slate-400">
+    <div className="border border-dashed border-black bg-white p-12 text-center text-sm uppercase tracking-widest text-black">
       Submit the form to see your four distribution strategies.
     </div>
   );

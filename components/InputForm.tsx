@@ -96,26 +96,23 @@ export default function InputForm({
   return (
     <form
       onSubmit={onSubmit}
-      className="grid grid-cols-1 gap-6 rounded-2xl border border-slate-200 bg-white p-6 shadow-sm dark:border-slate-800 dark:bg-slate-900 sm:grid-cols-2"
+      className="grid grid-cols-1 gap-8 border border-black bg-white p-8 sm:grid-cols-2"
     >
       <Section title="Available pool (counts you have)">
         <Field
           label="Easy available"
           value={form.easyAvailable}
           onChange={(v) => update("easyAvailable", v)}
-          accent="easy"
         />
         <Field
           label="Medium available"
           value={form.mediumAvailable}
           onChange={(v) => update("mediumAvailable", v)}
-          accent="medium"
         />
         <Field
           label="Hard available"
           value={form.hardAvailable}
           onChange={(v) => update("hardAvailable", v)}
-          accent="hard"
         />
       </Section>
 
@@ -130,38 +127,35 @@ export default function InputForm({
           label="Desired Easy %"
           value={form.desiredEasyPct}
           onChange={(v) => update("desiredEasyPct", v)}
-          accent="easy"
         />
         <Field
           label="Desired Medium %"
           value={form.desiredMediumPct}
           onChange={(v) => update("desiredMediumPct", v)}
-          accent="medium"
         />
         <Field
           label="Desired Hard %"
           value={form.desiredHardPct}
           onChange={(v) => update("desiredHardPct", v)}
-          accent="hard"
         />
       </Section>
 
-      <div className="sm:col-span-2 flex flex-wrap items-center gap-3">
+      <div className="sm:col-span-2 flex flex-wrap items-center gap-3 border-t border-black pt-6">
         <button
           type="submit"
           disabled={loading}
-          className="inline-flex items-center justify-center rounded-lg bg-slate-900 px-5 py-2.5 text-sm font-medium text-white transition hover:bg-slate-700 disabled:cursor-not-allowed disabled:opacity-60 dark:bg-slate-100 dark:text-slate-900 dark:hover:bg-white"
+          className="inline-flex items-center justify-center border border-black bg-black px-6 py-2.5 text-sm font-semibold uppercase tracking-wide text-white transition hover:bg-white hover:text-black disabled:cursor-not-allowed disabled:opacity-60"
         >
           {loading ? "Optimizing..." : "Optimize"}
         </button>
         <button
           type="button"
           onClick={reset}
-          className="inline-flex items-center justify-center rounded-lg border border-slate-300 px-5 py-2.5 text-sm font-medium text-slate-700 transition hover:bg-slate-50 dark:border-slate-700 dark:text-slate-200 dark:hover:bg-slate-800"
+          className="inline-flex items-center justify-center border border-black bg-white px-6 py-2.5 text-sm font-semibold uppercase tracking-wide text-black transition hover:bg-black hover:text-white"
         >
           Reset
         </button>
-        <p className="text-xs text-slate-500 dark:text-slate-400">
+        <p className="text-xs text-black">
           All math runs in pure TypeScript. Nothing is sent to an LLM.
         </p>
       </div>
@@ -177,8 +171,8 @@ function Section({
   children: React.ReactNode;
 }) {
   return (
-    <div className="space-y-3">
-      <h2 className="text-sm font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400">
+    <div className="space-y-4">
+      <h2 className="border-b border-black pb-2 text-xs font-bold uppercase tracking-[0.2em] text-black">
         {title}
       </h2>
       <div className="space-y-3">{children}</div>
@@ -191,27 +185,15 @@ function Field({
   value,
   onChange,
   hint,
-  accent,
 }: {
   label: string;
   value: string;
   onChange: (v: string) => void;
   hint?: string;
-  accent?: "easy" | "medium" | "hard";
 }) {
-  const accentBar = {
-    easy: "before:bg-easy",
-    medium: "before:bg-medium",
-    hard: "before:bg-hard",
-  }[accent ?? "easy"];
-
   return (
-    <label
-      className={`relative block rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 dark:border-slate-800 dark:bg-slate-950 ${
-        accent ? `before:absolute before:left-0 before:top-2 before:bottom-2 before:w-1 before:rounded-r ${accentBar}` : ""
-      }`}
-    >
-      <span className="block text-xs font-medium text-slate-600 dark:text-slate-300">
+    <label className="block border border-black bg-white p-3">
+      <span className="block text-[11px] font-bold uppercase tracking-wider text-black">
         {label}
       </span>
       <input
@@ -220,12 +202,10 @@ function Field({
         min={0}
         value={value}
         onChange={(e) => onChange(e.target.value)}
-        className="mt-0.5 w-full bg-transparent text-base font-semibold text-slate-900 outline-none placeholder:text-slate-400 dark:text-slate-100"
+        className="mt-1 w-full bg-transparent text-2xl font-bold text-black outline-none placeholder:text-black/40"
       />
       {hint ? (
-        <span className="block text-[11px] text-slate-500 dark:text-slate-400">
-          {hint}
-        </span>
+        <span className="mt-1 block text-[11px] text-black/70">{hint}</span>
       ) : null}
     </label>
   );

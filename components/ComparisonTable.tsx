@@ -20,70 +20,55 @@ export default function ComparisonTable({
   const sumAvailable = sumCounts(available);
 
   return (
-    <section className="space-y-4">
-      <header className="flex flex-wrap items-end justify-between gap-2">
+    <section className="space-y-6">
+      <header className="flex flex-wrap items-end justify-between gap-4 border-b border-black pb-4">
         <div>
-          <h2 className="text-lg font-semibold text-slate-900 dark:text-slate-50">
+          <h2 className="text-2xl font-bold uppercase tracking-tight text-black">
             Comparison of best options
           </h2>
-          <p className="text-xs text-slate-500 dark:text-slate-400">
+          <p className="mt-1 text-xs text-black/70">
             Four strategies computed from your inputs. Every row satisfies
             easy + medium + hard = total items and percentages sum to exactly 100.
           </p>
         </div>
-        <dl className="grid grid-cols-3 gap-4 text-right text-xs">
+        <dl className="flex gap-6 text-right">
           <Stat label="Target" value={String(totalTarget)} />
           <Stat label="Available" value={String(sumAvailable)} />
-          <Stat label="Desired" value={`${desiredPercentages.easy}/${desiredPercentages.medium}/${desiredPercentages.hard}`} />
+          <Stat
+            label="Desired"
+            value={`${desiredPercentages.easy}/${desiredPercentages.medium}/${desiredPercentages.hard}`}
+          />
         </dl>
       </header>
 
-      <div className="overflow-x-auto rounded-2xl border border-slate-200 bg-white shadow-sm dark:border-slate-800 dark:bg-slate-900">
+      <div className="overflow-x-auto border border-black bg-white">
         <table className="min-w-full text-left text-sm">
-          <thead className="bg-slate-50 text-xs uppercase tracking-wide text-slate-500 dark:bg-slate-800/50 dark:text-slate-300">
+          <thead className="bg-black text-xs uppercase tracking-wide text-white">
             <tr>
               <Th>Strategy</Th>
               <Th align="center">Total items</Th>
-              <Th align="center">
-                <span className="inline-flex items-center gap-1">
-                  <Dot className="bg-easy" /> Easy
-                </span>
-              </Th>
-              <Th align="center">
-                <span className="inline-flex items-center gap-1">
-                  <Dot className="bg-medium" /> Medium
-                </span>
-              </Th>
-              <Th align="center">
-                <span className="inline-flex items-center gap-1">
-                  <Dot className="bg-hard" /> Hard
-                </span>
-              </Th>
+              <Th align="center">Easy</Th>
+              <Th align="center">Medium</Th>
+              <Th align="center">Hard</Th>
               <Th>Final percentages</Th>
               <Th>Notes</Th>
             </tr>
           </thead>
-          <tbody className="divide-y divide-slate-100 dark:divide-slate-800">
-            {strategies.map((s, idx) => {
+          <tbody className="divide-y divide-black/20">
+            {strategies.map((s) => {
               const sum = sumCounts(s.counts);
-              const valid =
-                sum === s.totalItems && sum > 0;
+              const valid = sum === s.totalItems && sum > 0;
               return (
-                <tr
-                  key={s.strategyName}
-                  className={
-                    idx % 2 === 0
-                      ? "bg-white dark:bg-slate-900"
-                      : "bg-slate-50/50 dark:bg-slate-900/50"
-                  }
-                >
+                <tr key={s.strategyName} className="bg-white">
                   <Td>
-                    <span className="font-semibold text-slate-900 dark:text-slate-100">
+                    <span className="font-bold uppercase tracking-wide text-black">
                       {s.strategyName}
                     </span>
                   </Td>
                   <Td align="center">
-                    <span className="font-semibold">{s.totalItems}</span>
+                    <span className="text-lg font-bold text-black">
+                      {s.totalItems}
+                    </span>
                   </Td>
                   <Td align="center">
                     <Count value={s.counts.easy} max={available.easy} />
@@ -95,16 +80,14 @@ export default function ComparisonTable({
                     <Count value={s.counts.hard} max={available.hard} />
                   </Td>
                   <Td>
-                    <span className="font-mono font-semibold text-slate-800 dark:text-slate-200">
+                    <span className="font-mono text-base font-bold text-black">
                       {s.finalPercentages}
                     </span>
                   </Td>
                   <Td>
-                    <p className="text-xs text-slate-600 dark:text-slate-400">
-                      {s.notes}
-                    </p>
+                    <p className="text-xs text-black">{s.notes}</p>
                     {!valid ? (
-                      <p className="mt-1 text-[11px] font-medium text-amber-600 dark:text-amber-400">
+                      <p className="mt-1 text-[11px] font-bold uppercase tracking-wide text-black">
                         No feasible distribution under these inputs.
                       </p>
                     ) : null}
@@ -129,7 +112,7 @@ function Th({
   return (
     <th
       scope="col"
-      className={`px-4 py-3 font-semibold ${
+      className={`px-4 py-3 font-bold uppercase tracking-wide ${
         align === "center" ? "text-center" : "text-left"
       }`}
     >
@@ -146,7 +129,7 @@ function Td({
   align?: "left" | "center";
 }) {
   return (
-    <td className={`px-4 py-3 ${align === "center" ? "text-center" : "text-left"}`}>
+    <td className={`px-4 py-4 ${align === "center" ? "text-center" : "text-left"}`}>
       {children}
     </td>
   );
@@ -157,9 +140,7 @@ function Count({ value, max }: { value: number; max: number }) {
   return (
     <span
       className={
-        over
-          ? "font-semibold text-amber-600 dark:text-amber-400"
-          : "font-semibold text-slate-800 dark:text-slate-200"
+        "text-base font-bold " + (over ? "underline decoration-2 underline-offset-4" : "")
       }
     >
       {value}
@@ -167,24 +148,13 @@ function Count({ value, max }: { value: number; max: number }) {
   );
 }
 
-function Dot({ className }: { className: string }) {
-  return (
-    <span
-      aria-hidden
-      className={`inline-block h-2 w-2 rounded-full ${className}`}
-    />
-  );
-}
-
 function Stat({ label, value }: { label: string; value: string }) {
   return (
-    <div>
-      <dt className="text-[10px] uppercase tracking-wider text-slate-400">
+    <div className="border border-black bg-white px-3 py-2">
+      <dt className="text-[10px] font-bold uppercase tracking-wider text-black">
         {label}
       </dt>
-      <dd className="text-sm font-semibold text-slate-700 dark:text-slate-200">
-        {value}
-      </dd>
+      <dd className="text-base font-bold text-black">{value}</dd>
     </div>
   );
 }
